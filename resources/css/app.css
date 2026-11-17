@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../views';
+@source '../js';
+
+/*
+ * Brand colors are runtime CSS variables. Defaults live here; the real values
+ * come from the `settings` table and are printed into <head> by app.blade.php,
+ * so an admin can change them without rebuilding assets.
+ */
+:root {
+    --brand-primary: #F7F8FC;   /* light surfaces */
+    --brand-secondary: #0B1B4D; /* logo navy */
+    --brand-tertiary: #D4A84B;  /* logo gold */
+}
+
+@theme inline {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    --color-primary: var(--brand-primary);
+
+    --color-secondary: var(--brand-secondary);
+    --color-secondary-50: color-mix(in oklab, var(--brand-secondary) 6%, white);
+    --color-secondary-100: color-mix(in oklab, var(--brand-secondary) 12%, white);
+    --color-secondary-200: color-mix(in oklab, var(--brand-secondary) 24%, white);
+    --color-secondary-300: color-mix(in oklab, var(--brand-secondary) 40%, white);
+    --color-secondary-400: color-mix(in oklab, var(--brand-secondary) 62%, white);
+    --color-secondary-500: color-mix(in oklab, var(--brand-secondary) 82%, white);
+    --color-secondary-600: var(--brand-secondary);
+    --color-secondary-700: color-mix(in oklab, var(--brand-secondary) 88%, black);
+    --color-secondary-800: color-mix(in oklab, var(--brand-secondary) 76%, black);
+    --color-secondary-900: color-mix(in oklab, var(--brand-secondary) 60%, black);
+
+    --color-tertiary: var(--brand-tertiary);
+    --color-tertiary-50: color-mix(in oklab, var(--brand-tertiary) 8%, white);
+    --color-tertiary-100: color-mix(in oklab, var(--brand-tertiary) 16%, white);
+    --color-tertiary-200: color-mix(in oklab, var(--brand-tertiary) 32%, white);
+    --color-tertiary-300: color-mix(in oklab, var(--brand-tertiary) 55%, white);
+    --color-tertiary-400: color-mix(in oklab, var(--brand-tertiary) 78%, white);
+    --color-tertiary-500: var(--brand-tertiary);
+    --color-tertiary-600: color-mix(in oklab, var(--brand-tertiary) 85%, black);
+    --color-tertiary-700: color-mix(in oklab, var(--brand-tertiary) 70%, black);
+}
+
+@layer base {
+    html {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-primary text-slate-700 antialiased;
+    }
+
+    h1, h2, h3, h4 {
+        font-family: var(--font-display);
+        @apply text-slate-900;
+    }
+
+    /* Font only — color is inherited so it works on navy backgrounds too. */
+    .font-display {
+        font-family: var(--font-display);
+    }
+
+    button:not(:disabled), [role='button']:not(:disabled) {
+        cursor: pointer;
+    }
+}
+
+@layer components {
+    /* Subtle gold rule used under section titles. */
+    .gold-rule {
+        @apply h-0.5 w-12 rounded-full bg-tertiary;
+    }
+
+    .card {
+        @apply rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04),0_8px_24px_-12px_rgb(15_23_42/0.08)];
+    }
+}

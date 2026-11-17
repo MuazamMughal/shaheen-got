@@ -1,0 +1,90 @@
+name: shaheen
+
+x-php: &php
+  build:
+    context: ./docker/php
+    args:
+      UID: ${DOCKER_UID:-1000}
+      GID: ${DOCKER_GID:-1000}
+  image: shaheen-php:dev
+  volumes:
+    - ./:/var/www/html
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *php
+    container_name: shaheen-app
+
+  worker:
+    <<: *php
+    container_name: shaheen-worker
+    # Local stand-in for the Hostinger cron (schedule:run every minute + queue)
+    command: sh -c "php artisan schedule:work & php artisan queue:work --sleep=3 --tries=3"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: shaheen-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  mysql:
+    image: mysql:8.0
+    container_name: shaheen-mysql
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-shaheen}
+      MYSQL_USER: ${DB_USERNAME:-shaheen}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  node:
+    image: node:22-alpine
+    container_name: shaheen-node
+    working_dir: /var/www/html
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/var/www/html
+      - node-modules:/var/www/html/node_modules
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: shaheen-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: shaheen-pma
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    ports:
+      - "8081:80"
+    depends_on:
+      - mysql
+
+volumes:
+  mysql-data:
+  node-modules:
