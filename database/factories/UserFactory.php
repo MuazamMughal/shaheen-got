@@ -2,9 +2,10 @@
 
 namespace Database\Factories;
 
-use App\Models\User;
 use App\Enums\UserStatus;
 use App\Enums\UserType;
+use App\Models\Agency;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -56,7 +57,7 @@ class UserFactory extends Factory
     /** Agent with an agency profile. */
     public function withAgency(array $attributes = []): static
     {
-        return $this->agent()->has(\App\Models\Agency::factory()->state($attributes), 'agency');
+        return $this->agent()->has(Agency::factory()->state($attributes), 'agency');
     }
 
     public function pending(): static

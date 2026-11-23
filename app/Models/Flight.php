@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\RecordsActivity;
 use App\Enums\FlightStatus;
+use App\Models\Concerns\RecordsActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Flight extends Model
 {
-    use HasFactory, SoftDeletes, RecordsActivity;
+    use HasFactory, RecordsActivity, SoftDeletes;
 
     /** Price columns — always pass through HidesPrices before reaching the browser. */
     public const PRICE_FIELDS = ['fare_price', 'adult_price', 'child_price', 'infant_price'];

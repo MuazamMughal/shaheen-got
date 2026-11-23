@@ -7,10 +7,12 @@ use App\Models\BaggageType;
 use App\Models\Category;
 use App\Models\Sector;
 use App\Models\User;
+use App\Services\SettingsService;
 use Database\Seeders\MasterDataSeeder;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -157,7 +159,7 @@ class MasterDataTest extends TestCase
                 ->where('settings.contact.whatsapp', '923001234567')
                 ->where('settings.site.ticker', 'Hello agents'));
 
-        $settings = app(\App\Services\SettingsService::class);
+        $settings = app(SettingsService::class);
         $this->assertSame(['ops@example.com', 'boss@example.com'], $settings->adminEmails());
         $this->assertSame(3, $settings->lowSeatThreshold());
     }
@@ -172,7 +174,7 @@ class MasterDataTest extends TestCase
 
     public function test_test_email_is_sent(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
 
         $this->actingAs($this->admin)->post('/admin/settings/test-email', ['email' => 'me@example.com'])
             ->assertSessionHas('success');

@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\RecordsActivity;
 use App\Enums\UserStatus;
 use App\Enums\UserType;
+use App\Models\Concerns\RecordsActivity;
+use App\Support\Permissions;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
-use App\Support\Permissions;
 
 class User extends Authenticatable
 {

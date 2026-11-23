@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\RecordsActivity;
 use App\Enums\BookingStatus;
+use App\Models\Concerns\RecordsActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Booking extends Model
 {
-    use HasFactory, SoftDeletes, RecordsActivity;
+    use HasFactory, RecordsActivity, SoftDeletes;
 
     public const PRICE_FIELDS = ['adult_price', 'child_price', 'infant_price', 'total_price'];
 

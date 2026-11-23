@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\BookingStatus;
 use App\Enums\UserStatus;
 use App\Enums\UserType;
 use App\Http\Controllers\Controller;
-use App\Enums\BookingStatus;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Flight;

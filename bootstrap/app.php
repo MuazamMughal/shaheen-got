@@ -1,8 +1,14 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureAgentApproved;
+use App\Http\Middleware\EnsureUserType;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,15 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            \App\Http\Middleware\EnsureAccountActive::class,
-            \App\Http\Middleware\SecurityHeaders::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
+            EnsureAccountActive::class,
+            SecurityHeaders::class,
         ]);
 
         $middleware->alias([
-            'user.type' => \App\Http\Middleware\EnsureUserType::class,
-            'agent.approved' => \App\Http\Middleware\EnsureAgentApproved::class,
+            'user.type' => EnsureUserType::class,
+            'agent.approved' => EnsureAgentApproved::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

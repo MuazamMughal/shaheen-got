@@ -14,6 +14,7 @@ use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -22,6 +23,7 @@ class NotificationTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private BookingService $service;
 
     protected function setUp(): void
@@ -180,7 +182,7 @@ class NotificationTest extends TestCase
     {
         $agent = User::factory()->withAgency()->create();
         $agent->notifications()->create([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'type' => AgentNotification::class,
             'data' => (new AgentNotification($agent, 'approved', 'agent'))->toArray($agent),
         ]);

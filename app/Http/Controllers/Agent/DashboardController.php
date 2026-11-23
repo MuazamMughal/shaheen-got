@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Agent;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use Illuminate\Http\Request;
 use App\Models\Category;
 use App\Models\Flight;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 

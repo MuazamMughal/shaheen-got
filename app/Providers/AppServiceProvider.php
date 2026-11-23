@@ -2,11 +2,11 @@
 
 namespace App\Providers;
 
-use App\Services\SettingsService;
 use App\Enums\UserType;
 use App\Models\User;
-use Illuminate\Support\Facades\Route;
+use App\Services\SettingsService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 

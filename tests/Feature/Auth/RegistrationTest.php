@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\UserStatus;
+use App\Enums\UserType;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -33,9 +36,9 @@ class RegistrationTest extends TestCase
         $this->assertAuthenticated();
         $response->assertRedirect(route('agent.pending', absolute: false));
 
-        $user = \App\Models\User::where('email', 'test@example.com')->first();
-        $this->assertSame(\App\Enums\UserType::Agent, $user->type);
-        $this->assertSame(\App\Enums\UserStatus::Pending, $user->status);
+        $user = User::where('email', 'test@example.com')->first();
+        $this->assertSame(UserType::Agent, $user->type);
+        $this->assertSame(UserStatus::Pending, $user->status);
         $this->assertSame('Test Travels', $user->agency->agency_name);
         $this->assertSame('923001234567', $user->agency->whatsapp);
     }
