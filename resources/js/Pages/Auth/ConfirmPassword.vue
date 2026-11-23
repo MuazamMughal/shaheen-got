@@ -1,55 +1,34 @@
 <script setup>
-import GuestLayout from '@/Layouts/GuestLayout.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { LockClosedIcon } from '@heroicons/vue/24/outline';
+import GuestLayout from '@/Layouts/GuestLayout.vue';
+import Input from '@/Components/ui/Input.vue';
+import Button from '@/Components/ui/Button.vue';
+import { rules as r, useValidation } from '@/Composables/useValidation';
 
-const form = useForm({
-    password: '',
+const form = useForm({ password: '' });
+
+const { validate, touch, reset: resetValidation } = useValidation(form, {
+    password: [r.required('Enter your password.')],
 });
 
 const submit = () => {
+    if (!validate()) return;
     form.post(route('password.confirm'), {
-        onFinish: () => form.reset(),
+        onFinish: () => { resetValidation(); form.reset(); },
     });
 };
 </script>
 
 <template>
-    <GuestLayout>
-        <Head title="Confirm Password" />
+    <Head title="Confirm Password" />
+    <GuestLayout title="Confirm your password" subtitle="This is a secure area. Please confirm your password before continuing.">
+        <form class="space-y-5" novalidate @submit.prevent="submit">
+            <Input v-model="form.password" name="password" @blur="touch('password')" label="Password" type="password" :error="form.errors.password" required autofocus autocomplete="current-password">
+                <template #icon><LockClosedIcon class="size-5" /></template>
+            </Input>
 
-        <div class="mb-4 text-sm text-slate-600">
-            This is a secure area of the application. Please confirm your
-            password before continuing.
-        </div>
-
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="password" value="Password" />
-                <TextInput
-                    id="password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password"
-                    required
-                    autocomplete="current-password"
-                    autofocus
-                />
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="mt-4 flex justify-end">
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Confirm
-                </PrimaryButton>
-            </div>
+            <Button type="submit" size="lg" block :loading="form.processing">Confirm</Button>
         </form>
     </GuestLayout>
 </template>

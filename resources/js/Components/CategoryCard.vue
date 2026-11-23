@@ -9,7 +9,7 @@ defineProps({
 </script>
 
 <template>
-    <div :class="['card group overflow-hidden transition', muted ? 'opacity-60 grayscale' : 'hover:-translate-y-0.5 hover:shadow-xl']">
+    <div :class="['card group flex h-full flex-col overflow-hidden transition', muted ? 'opacity-60 grayscale' : 'hover:-translate-y-0.5 hover:shadow-xl']">
         <div class="relative aspect-[16/10] overflow-hidden bg-gradient-to-br from-secondary via-secondary-700 to-secondary-900">
             <img v-if="category.image_url" :src="category.image_url" :alt="category.name" class="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
             <template v-else>
@@ -23,7 +23,7 @@ defineProps({
             <PaperAirplaneIcon class="absolute bottom-2.5 right-4 size-5 -rotate-45 text-white" />
             <slot name="badge" />
         </div>
-        <div class="p-5">
+        <div class="flex flex-1 flex-col p-5">
             <h3 class="font-display text-lg font-semibold leading-snug">{{ category.name }}</h3>
             <div v-if="category.country" class="mt-2 flex items-center gap-2.5 text-sm text-slate-500">
                 <img v-if="category.flag_url" :src="category.flag_url" alt="" class="size-6 rounded-full object-cover ring-1 ring-slate-200" />

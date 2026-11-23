@@ -5,6 +5,7 @@ import GuestLayout from '@/Layouts/GuestLayout.vue';
 import Checkbox from '@/Components/Checkbox.vue';
 import Input from '@/Components/ui/Input.vue';
 import Button from '@/Components/ui/Button.vue';
+import { rules as r, useValidation } from '@/Composables/useValidation';
 
 defineProps({
     canResetPassword: { type: Boolean },
@@ -13,7 +14,15 @@ defineProps({
 
 const form = useForm({ email: '', password: '', remember: false });
 
-const submit = () => form.post(route('login'), { onFinish: () => form.reset('password') });
+const { validate, touch, reset: resetValidation } = useValidation(form, {
+    email: [r.required('Enter your email address.'), r.email()],
+    password: [r.required('Enter your password.')],
+});
+
+const submit = () => {
+    if (!validate()) return;
+    form.post(route('login'), { onFinish: () => { resetValidation(); form.reset('password'); } });
+};
 </script>
 
 <template>
@@ -23,12 +32,12 @@ const submit = () => form.post(route('login'), { onFinish: () => form.reset('pas
             {{ status }}
         </div>
 
-        <form class="space-y-5" @submit.prevent="submit">
-            <Input v-model="form.email" label="Email address" type="email" :error="form.errors.email" required autofocus autocomplete="username" placeholder="you@agency.com">
+        <form class="space-y-5" novalidate @submit.prevent="submit">
+            <Input v-model="form.email" name="email" @blur="touch('email')" label="Email address" type="email" :error="form.errors.email" required autofocus autocomplete="username" placeholder="you@agency.com">
                 <template #icon><EnvelopeIcon class="size-5" /></template>
             </Input>
 
-            <Input v-model="form.password" label="Password" type="password" :error="form.errors.password" required autocomplete="current-password" placeholder="••••••••">
+            <Input v-model="form.password" name="password" @blur="touch('password')" label="Password" type="password" :error="form.errors.password" required autocomplete="current-password" placeholder="••••••••">
                 <template #icon><LockClosedIcon class="size-5" /></template>
             </Input>
 

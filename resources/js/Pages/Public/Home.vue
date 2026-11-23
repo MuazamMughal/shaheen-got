@@ -1,12 +1,32 @@
 <script setup>
 import { computed } from 'vue';
-import { usePage } from '@inertiajs/vue3';
-import { PaperAirplaneIcon, ShieldCheckIcon, BoltIcon, ChatBubbleLeftRightIcon } from '@heroicons/vue/24/outline';
+import { Link, usePage } from '@inertiajs/vue3';
+import { PaperAirplaneIcon, ShieldCheckIcon, BoltIcon, ChatBubbleLeftRightIcon, ArrowRightIcon, LockClosedIcon } from '@heroicons/vue/24/outline';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import Button from '@/Components/ui/Button.vue';
 import CategoryCard from '@/Components/CategoryCard.vue';
 
-const user = computed(() => usePage().props.auth.user);
+const page = usePage();
+const user = computed(() => page.props.auth.user);
+const isAdminSide = computed(() => ['super_admin', 'staff'].includes(user.value?.type));
+const can = (perm) => (page.props.auth.permissions ?? []).includes(perm);
+
+/*
+ * Where a group card leads depends on who is looking:
+ *  - guests: the agent group page; the auth middleware sends them to log in
+ *    and Laravel's "intended" redirect brings them back to this group after.
+ *  - agents: that group's fares (pending agents get bounced to their pending page).
+ *  - admins/staff: the flights list filtered to this group (or categories, or nothing
+ *    when they lack both permissions).
+ */
+const cardLink = (c) => {
+    if (isAdminSide.value) {
+        if (can('flights.view')) return { href: route('admin.flights.index', { category: c.id }), cta: 'Manage flights' };
+        if (can('categories.manage')) return { href: route('admin.categories.index'), cta: 'Manage groups' };
+        return null;
+    }
+    return { href: route('agent.groups.show', c.slug), cta: user.value ? 'View fares' : 'Log in to view fares' };
+};
 
 defineProps({ categories: { type: Array, default: () => [] } });
 
@@ -72,7 +92,25 @@ const features = [
             </div>
 
             <div v-if="categories.length" class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                <CategoryCard v-for="c in categories" :key="c.id" :category="c" />
+                <template v-for="c in categories" :key="c.id">
+                    <Link
+                        v-if="cardLink(c)"
+                        :href="cardLink(c).href"
+                        class="rounded-2xl focus:outline-none focus-visible:ring-4 focus-visible:ring-tertiary-300"
+                        :aria-label="`${c.name}: ${cardLink(c).cta}`"
+                    >
+                        <CategoryCard :category="c">
+                            <div class="mt-auto pt-4"><div class="flex items-center justify-between border-t border-dashed border-slate-200 pt-4 text-sm font-semibold text-secondary">
+                                <span class="flex items-center gap-1.5">
+                                    <LockClosedIcon v-if="!user" class="size-4 text-tertiary-600" />
+                                    {{ cardLink(c).cta }}
+                                </span>
+                                <ArrowRightIcon class="size-4 transition group-hover:translate-x-1" />
+                            </div></div>
+                        </CategoryCard>
+                    </Link>
+                    <CategoryCard v-else :category="c" />
+                </template>
             </div>
             <p v-else class="mt-12 text-center text-sm text-slate-500">Group fares will be listed here soon.</p>
         </section>
