@@ -60,6 +60,16 @@ class BookingService
     public function update(Booking $booking, array $data, array $passengers, User $actor): Booking
     {
         return DB::transaction(function () use ($booking, $data, $passengers, $actor) {
+            // Re-read under a lock: the status may have changed since the request was authorized.
+            $booking = $this->lock($booking);
+
+            if (in_array($booking->status, [BookingStatus::Rejected, BookingStatus::Cancelled], true)) {
+                throw ValidationException::withMessages(['status' => 'This booking is closed and can no longer be edited.']);
+            }
+            if ($actor->isAgent() && $booking->status !== BookingStatus::Pending) {
+                throw ValidationException::withMessages(['status' => 'This booking can no longer be edited. Contact us on WhatsApp.']);
+            }
+
             $countsChanged = (int) $data['adults'] !== $booking->adults
                 || (int) ($data['children'] ?? 0) !== $booking->children
                 || (int) ($data['infants'] ?? 0) !== $booking->infants;
@@ -89,24 +99,28 @@ class BookingService
 
     public function approvePayment(Booking $booking, User $admin, ?string $note = null): void
     {
-        $this->expect($booking, [BookingStatus::Pending], 'Only pending bookings can have their payment approved.');
+        DB::transaction(function () use ($booking, $admin, $note) {
+            // Locked re-read so a booking cancelled at the same moment can't be revived.
+            $booking = $this->lock($booking);
+            $this->expect($booking, [BookingStatus::Pending], 'Only pending bookings can have their payment approved.');
 
-        $booking->forceFill([
-            'status' => BookingStatus::PaymentApproved,
-            'payment_status' => 'approved',
-            'payment_approved_by' => $admin->id,
-            'payment_approved_at' => now(),
-            'payment_note' => $note,
-        ])->save();
+            $booking->forceFill([
+                'status' => BookingStatus::PaymentApproved,
+                'payment_status' => 'approved',
+                'payment_approved_by' => $admin->id,
+                'payment_approved_at' => now(),
+                'payment_note' => $note,
+            ])->save();
 
-        $this->log($booking, BookingStatus::Pending, BookingStatus::PaymentApproved, $admin, $note ? "Payment approved — {$note}" : 'Payment approved');
-        $this->notifier->paymentApproved($booking);
+            $this->log($booking, BookingStatus::Pending, BookingStatus::PaymentApproved, $admin, $note ? "Payment approved — {$note}" : 'Payment approved');
+            $this->notifier->paymentApproved($booking);
+        });
     }
 
     public function confirm(Booking $booking, User $admin, ?string $remarks = null): void
     {
         DB::transaction(function () use ($booking, $admin, $remarks) {
-            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
+            $booking = $this->lock($booking);
             $this->expect($booking, [BookingStatus::PaymentApproved], 'Approve the payment before confirming this booking.');
 
             $flight = Flight::whereKey($booking->flight_id)->lockForUpdate()->firstOrFail();
@@ -132,25 +146,29 @@ class BookingService
 
     public function reject(Booking $booking, User $admin, string $reason): void
     {
-        $from = $booking->status;
-        $this->expect($booking, BookingStatus::open(), 'Only pending or payment-approved bookings can be rejected.');
+        DB::transaction(function () use ($booking, $admin, $reason) {
+            // Locked re-read so a booking confirmed at the same moment isn't rejected with its seats still counted.
+            $booking = $this->lock($booking);
+            $from = $booking->status;
+            $this->expect($booking, BookingStatus::open(), 'Only pending or payment-approved bookings can be rejected.');
 
-        $booking->forceFill([
-            'status' => BookingStatus::Rejected,
-            'rejected_by' => $admin->id,
-            'rejected_at' => now(),
-            'reject_reason' => $reason,
-        ])->save();
+            $booking->forceFill([
+                'status' => BookingStatus::Rejected,
+                'rejected_by' => $admin->id,
+                'rejected_at' => now(),
+                'reject_reason' => $reason,
+            ])->save();
 
-        $this->log($booking, $from, BookingStatus::Rejected, $admin, $reason);
-        $this->notifier->bookingRejected($booking);
+            $this->log($booking, $from, BookingStatus::Rejected, $admin, $reason);
+            $this->notifier->bookingRejected($booking);
+        });
     }
 
     /** Agents may cancel their own pending requests; admins may also cancel confirmed ones (seats return). */
     public function cancel(Booking $booking, User $actor, ?string $reason = null): void
     {
         DB::transaction(function () use ($booking, $actor, $reason) {
-            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
+            $booking = $this->lock($booking);
             $from = $booking->status;
 
             $allowed = $actor->isAgent() ? [BookingStatus::Pending] : [...BookingStatus::open(), BookingStatus::Confirmed];
@@ -174,6 +192,12 @@ class BookingService
             $this->log($booking, $from, BookingStatus::Cancelled, $actor, $reason ?? 'Booking cancelled');
             $this->notifier->bookingCancelled($booking);
         });
+    }
+
+    /** Fresh copy of the booking, row-locked until the surrounding transaction ends. */
+    private function lock(Booking $booking): Booking
+    {
+        return Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
     }
 
     private function ensureSeats(Flight $flight, int $seats, string $prefix = 'Only'): void

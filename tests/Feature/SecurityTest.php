@@ -40,6 +40,27 @@ class SecurityTest extends TestCase
         $this->post('/register', ['email' => 'y@example.com'])->assertStatus(429);
     }
 
+    public function test_password_checks_are_rate_limited(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->actingAs($user)->post('/confirm-password', ['password' => "wrong{$i}"]);
+        }
+        $this->actingAs($user)->post('/confirm-password', ['password' => 'wrong'])->assertStatus(429);
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->actingAs($user)->put('/password', ['current_password' => "wrong{$i}", 'password' => 'NewPass123', 'password_confirmation' => 'NewPass123']);
+        }
+        $this->actingAs($user)->put('/password', ['current_password' => 'wrong'])->assertStatus(429);
+
+        auth()->logout();
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/reset-password', ['token' => 'x', 'email' => $user->email, 'password' => 'NewPass123', 'password_confirmation' => 'NewPass123']);
+        }
+        $this->post('/reset-password', ['token' => 'x'])->assertStatus(429);
+    }
+
     public function test_friendly_error_pages(): void
     {
         $this->get('/no-such-page')->assertNotFound()->assertInertia(fn ($p) => $p->component('Error')->where('status', 404));

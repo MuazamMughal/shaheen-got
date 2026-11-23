@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\BookingService;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -18,7 +19,9 @@ class BookingTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $agent;
+
     private Flight $flight;
 
     protected function setUp(): void
@@ -279,5 +282,62 @@ class BookingTest extends TestCase
 
         $this->actingAs($this->admin)->get('/admin/flights')
             ->assertInertia(fn ($p) => $p->where('flights.data.0.seats_pending', 3));
+    }
+
+    /*
+     * Status changes re-read the booking under a lock, so an action working from an
+     * out-of-date copy (two admins clicking at the same moment) can't undo another one.
+     */
+    public function test_reject_cannot_override_a_booking_confirmed_in_the_meantime(): void
+    {
+        $service = app(BookingService::class);
+        $booking = Booking::factory()->forFlight($this->flight)->create(['adults' => 2]);
+        $service->approvePayment($booking, $this->admin);
+
+        $stale = Booking::find($booking->id);
+        $service->confirm(Booking::find($booking->id), $this->admin);
+
+        try {
+            $service->reject($stale, $this->admin, 'Seats taken');
+            $this->fail('Rejecting a confirmed booking should fail.');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(BookingStatus::Confirmed, $booking->refresh()->status);
+        $this->assertSame(2, $this->flight->refresh()->seats_confirmed);
+    }
+
+    public function test_payment_cannot_be_approved_on_a_booking_cancelled_in_the_meantime(): void
+    {
+        $service = app(BookingService::class);
+        $booking = Booking::factory()->forFlight($this->flight)->create(['agent_id' => $this->agent->id, 'adults' => 2]);
+
+        $stale = Booking::find($booking->id);
+        $service->cancel(Booking::find($booking->id), $this->agent, 'Changed plans');
+
+        try {
+            $service->approvePayment($stale, $this->admin);
+            $this->fail('Approving a cancelled booking should fail.');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame(BookingStatus::Cancelled, $booking->refresh()->status);
+    }
+
+    public function test_agent_cannot_edit_a_booking_approved_in_the_meantime(): void
+    {
+        $service = app(BookingService::class);
+        $booking = Booking::factory()->forFlight($this->flight)->create(['agent_id' => $this->agent->id, 'adults' => 1, 'booker_name' => 'ORIGINAL']);
+
+        $stale = Booking::find($booking->id);
+        $service->approvePayment(Booking::find($booking->id), $this->admin);
+
+        try {
+            $service->update($stale, ['booker_name' => 'CHANGED', 'adults' => 1, 'children' => 0, 'infants' => 0], [], $this->agent);
+            $this->fail('Editing an approved booking as the agent should fail.');
+        } catch (ValidationException) {
+        }
+
+        $this->assertSame('ORIGINAL', $booking->refresh()->booker_name);
     }
 }

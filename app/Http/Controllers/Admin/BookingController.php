@@ -79,6 +79,7 @@ class BookingController extends Controller
                 'departure_date_label' => $flight->departure_date->format('d - m - Y'),
                 'arrival_date_label' => $flight->arrival_date->format('d - m - Y'),
                 'departure_date' => $flight->departure_date->toDateString(),
+                'arrival_date' => $flight->arrival_date->toDateString(),
                 'departure_time' => substr((string) $flight->departure_time, 0, 5),
                 'arrival_time' => substr((string) $flight->arrival_time, 0, 5),
                 'baggage' => $flight->baggageType->label,

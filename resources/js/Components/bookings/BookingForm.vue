@@ -3,7 +3,7 @@
  * Booking form used by agents (create / edit) and admins (edit).
  * Counters drive the passenger rows; prices show a live breakdown.
  */
-import { computed, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { MinusIcon, PlusIcon, UserGroupIcon, IdentificationIcon, PaperAirplaneIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 import Input from '@/Components/ui/Input.vue';
@@ -82,7 +82,89 @@ const rowLabel = (p, i) => {
 };
 const err = (i, field) => form.errors[`passengers.${i}.${field}`];
 
+/*
+ * Client-side checks mirroring BookingRequest, so mistakes show inline before a round trip.
+ * Errors use the same keys as the server (`passengers.0.dob` …). The server still validates.
+ */
+const today = () => new Date().toISOString().slice(0, 10);
+const blankVal = (v) => v === null || v === undefined || String(v).trim() === '';
+const NAME = /^[\p{L}\s.'-]+$/u;
+const PHONE = /^[0-9+\-\s()]{7,30}$/;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const AGE = { adult: [12, Infinity], child: [2, 12], infant: [0, 2] };
+
+// Whole years between two YYYY-MM-DD dates.
+function yearsBetween(from, to) {
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const [ty, tm, td] = to.split('-').map(Number);
+    return ty - fy - (tm < fm || (tm === fm && td < fd) ? 1 : 0);
+}
+
+function collectErrors() {
+    const e = {};
+    if (blankVal(form.booker_name)) e.booker_name = 'Enter the booker’s name.';
+    if (blankVal(form.booker_phone)) e.booker_phone = 'Enter the booker’s phone number.';
+    else if (!PHONE.test(form.booker_phone.trim())) e.booker_phone = 'Enter a valid phone number.';
+    if (!blankVal(form.booker_email) && !EMAIL.test(form.booker_email.trim())) e.booker_email = 'Enter a valid email address.';
+
+    form.passengers.forEach((p, i) => {
+        const k = (f) => `passengers.${i}.${f}`;
+        for (const [f, label] of [['given_name', 'given name'], ['surname', 'surname']]) {
+            if (blankVal(p[f])) e[k(f)] = `Enter the ${label}.`;
+            else if (!NAME.test(p[f].trim())) e[k(f)] = 'Use letters only.';
+        }
+
+        const passport = String(p.passport_no ?? '').replace(/\s+/g, '');
+        if (!passport) e[k('passport_no')] = 'Enter the passport number.';
+        else if (!/^[A-Za-z0-9]+$/.test(passport)) e[k('passport_no')] = 'Letters and numbers only.';
+        else if (passport.length < 5 || passport.length > 20) e[k('passport_no')] = 'Must be 5–20 characters.';
+
+        if (!p.dob) e[k('dob')] = 'Enter the date of birth.';
+        else if (p.dob >= today()) e[k('dob')] = 'Date of birth must be in the past.';
+        else if (props.flight.departure_date) {
+            const age = yearsBetween(p.dob, props.flight.departure_date);
+            const [min, max] = AGE[p.pax_type];
+            if (age < min || age >= max) e[k('dob')] = `Must be ${props.paxRules[p.pax_type].age} on the travel date.`;
+        }
+
+        if (p.passport_issue_date && p.passport_issue_date > today()) e[k('passport_issue_date')] = 'Issue date can’t be in the future.';
+
+        if (!p.passport_expiry_date) e[k('passport_expiry_date')] = 'Enter the passport expiry date.';
+        else if (props.flight.arrival_date && p.passport_expiry_date <= props.flight.arrival_date) {
+            e[k('passport_expiry_date')] = `Passport must be valid after ${props.flight.arrival_date_label.replace(/ /g, '')}.`;
+        }
+    });
+    return e;
+}
+
+// After the first submit attempt, re-check live as the user fixes things.
+const attempted = ref(false);
+const CLIENT_KEYS = /^(booker_|passengers\.\d+\.)/;
+
+function applyClientErrors() {
+    const next = collectErrors();
+    // Replace only the client-checkable keys; leave server-only errors (seats, status…) alone.
+    for (const key of Object.keys(form.errors)) if (CLIENT_KEYS.test(key) && !next[key]) form.clearErrors(key);
+    if (Object.keys(next).length) form.setError(next);
+    return Object.keys(next).length === 0;
+}
+
+watch(() => [form.booker_name, form.booker_phone, form.booker_email, JSON.stringify(form.passengers)], () => {
+    if (attempted.value) applyClientErrors();
+});
+
+const formEl = ref(null);
+
 function submit() {
+    attempted.value = true;
+    if (!applyClientErrors()) {
+        nextTick(() => {
+            const bad = formEl.value?.querySelector('[aria-invalid="true"]');
+            bad?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            bad?.focus({ preventScroll: true });
+        });
+        return;
+    }
     form.submit(props.method, props.submitUrl, { preserveScroll: 'errors' });
 }
 
@@ -93,7 +175,7 @@ const cellBad = 'border-rose-300 focus:border-rose-400 focus:ring-rose-100';
 </script>
 
 <template>
-    <form class="space-y-6 pb-24" @submit.prevent="submit">
+    <form ref="formEl" class="space-y-6 pb-24" novalidate @submit.prevent="submit">
         <!-- Flight summary -->
         <section class="overflow-hidden rounded-2xl bg-secondary text-white">
             <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
@@ -194,39 +276,39 @@ const cellBad = 'border-rose-300 focus:border-rose-400 focus:ring-rose-100';
                     </div>
                     <label class="sm:col-span-1 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600 xl:sr-only">Title</span>
-                        <select v-model="p.title" :class="[cellInput, err(i, 'title') ? cellBad : cellOk]" aria-label="Title">
+                        <select v-model="p.title" :class="[cellInput, err(i, 'title') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'title')" aria-label="Title">
                             <option v-for="t in paxRules[p.pax_type].titles" :key="t" :value="t">{{ t }}</option>
                         </select>
                     </label>
                     <label class="sm:col-span-2 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600 xl:sr-only">Given name</span>
-                        <input v-model="p.given_name" :class="[cellInput, 'uppercase', err(i, 'given_name') ? cellBad : cellOk]" placeholder="Given name" aria-label="Given name" autocomplete="off" required />
+                        <input v-model="p.given_name" :class="[cellInput, 'uppercase', err(i, 'given_name') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'given_name')" placeholder="Given name" aria-label="Given name" autocomplete="off" required />
                         <span v-if="err(i, 'given_name')" class="mt-1 block text-[11px] text-rose-600">{{ err(i, 'given_name') }}</span>
                     </label>
                     <label class="sm:col-span-3 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600 xl:sr-only">Surname</span>
-                        <input v-model="p.surname" :class="[cellInput, 'uppercase', err(i, 'surname') ? cellBad : cellOk]" placeholder="Surname" aria-label="Surname" autocomplete="off" required />
+                        <input v-model="p.surname" :class="[cellInput, 'uppercase', err(i, 'surname') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'surname')" placeholder="Surname" aria-label="Surname" autocomplete="off" required />
                         <span v-if="err(i, 'surname')" class="mt-1 block text-[11px] text-rose-600">{{ err(i, 'surname') }}</span>
                     </label>
                     <label class="sm:col-span-2 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600 xl:sr-only">Passport #</span>
-                        <input v-model="p.passport_no" :class="[cellInput, 'uppercase', err(i, 'passport_no') ? cellBad : cellOk]" placeholder="Passport #" aria-label="Passport number" autocomplete="off" required />
+                        <input v-model="p.passport_no" :class="[cellInput, 'uppercase', err(i, 'passport_no') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'passport_no')" placeholder="Passport #" aria-label="Passport number" autocomplete="off" required />
                         <span v-if="err(i, 'passport_no')" class="mt-1 block text-[11px] text-rose-600">{{ err(i, 'passport_no') }}</span>
                     </label>
                     <label class="sm:col-span-2 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600">Date of birth</span>
-                        <input v-model="p.dob" type="date" :class="[cellInput, err(i, 'dob') ? cellBad : cellOk]" required />
+                        <input v-model="p.dob" type="date" :class="[cellInput, err(i, 'dob') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'dob')" required />
                         <span v-if="err(i, 'dob')" class="mt-1 block text-[11px] text-rose-600">{{ err(i, 'dob') }}</span>
                         <span v-else class="mt-1 block text-[10px] text-slate-400">{{ paxRules[p.pax_type].age }}</span>
                     </label>
                     <label class="sm:col-span-2 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600">Passport issue</span>
-                        <input v-model="p.passport_issue_date" type="date" :class="[cellInput, err(i, 'passport_issue_date') ? cellBad : cellOk]" />
+                        <input v-model="p.passport_issue_date" type="date" :class="[cellInput, err(i, 'passport_issue_date') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'passport_issue_date')" />
                         <span v-if="err(i, 'passport_issue_date')" class="mt-1 block text-[11px] text-rose-600">{{ err(i, 'passport_issue_date') }}</span>
                     </label>
                     <label class="sm:col-span-2 xl:col-span-1">
                         <span class="mb-1 block text-xs font-medium text-slate-600">Passport expiry</span>
-                        <input v-model="p.passport_expiry_date" type="date" :class="[cellInput, err(i, 'passport_expiry_date') ? cellBad : cellOk]" required />
+                        <input v-model="p.passport_expiry_date" type="date" :class="[cellInput, err(i, 'passport_expiry_date') ? cellBad : cellOk]" :aria-invalid="!!err(i, 'passport_expiry_date')" required />
                         <span v-if="err(i, 'passport_expiry_date')" class="mt-1 block text-[11px] text-rose-600">{{ err(i, 'passport_expiry_date') }}</span>
                     </label>
                 </fieldset>

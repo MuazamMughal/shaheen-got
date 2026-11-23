@@ -52,13 +52,14 @@ const tabs = [
 
 const columns = computed(() => [
     { key: 'booking_no', label: 'Booking' },
-    { key: 'agency', label: 'Agency' },
+    // On phones the agency, flight and status move into the Booking cell so the actions menu stays on screen.
+    { key: 'agency', label: 'Agency', class: 'hidden sm:table-cell' },
     { key: 'pnr', label: 'PNR', class: 'hidden 2xl:table-cell' },
     { key: 'sector', label: 'Sector / Airline', class: 'hidden xl:table-cell' },
     { key: 'lead', label: 'Lead passenger', class: 'hidden 2xl:table-cell' },
     { key: 'travel', label: 'Travel', class: 'hidden 2xl:table-cell' },
     ...(canViewPrices() ? [{ key: 'total', label: 'Total', align: 'right', class: 'hidden lg:table-cell' }] : []),
-    { key: 'status', label: 'Status' },
+    { key: 'status', label: 'Status', class: 'hidden sm:table-cell' },
     { key: 'actions', label: '', align: 'right' },
 ]);
 
@@ -106,6 +107,13 @@ const quick = (b) => (b.status === 'pending' && can('bookings.approve_payment') 
             <template #cell-booking_no="{ row }">
                 <Link :href="route('admin.bookings.show', row.id)" class="whitespace-nowrap font-semibold text-secondary hover:text-tertiary-600">{{ row.booking_no }}</Link>
                 <p class="whitespace-nowrap text-xs text-slate-500">{{ row.created_at }} · {{ row.total_pax }} pax</p>
+                <div class="mt-1 max-w-[13rem] text-xs text-slate-500 sm:hidden">
+                    <div class="mb-1.5"><BookingStatusBadge :booking="row" /></div>
+                    <p v-if="row.exceeds_seats" class="mb-1 flex items-center gap-1 text-[11px] font-semibold text-rose-600"><ExclamationTriangleIcon class="size-3.5" /> No seats left</p>
+                    <p class="truncate font-medium text-slate-800">{{ row.agent?.agency_name ?? row.agent?.name }}</p>
+                    <p class="truncate">{{ row.flight.sector }}</p>
+                    <p class="truncate">Travel {{ row.flight.departure_date_label }}</p>
+                </div>
             </template>
             <template #cell-agency="{ row }">
                 <p class="max-w-56 truncate font-medium text-slate-900">{{ row.agent?.agency_name ?? row.agent?.name }}</p>
