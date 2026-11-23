@@ -25,4 +25,17 @@ class ThemeSettingsTest extends TestCase
             ->assertSee('--brand-tertiary: #D4A84B', false)
             ->assertDontSee('display:none', false);
     }
+
+    public function test_favicon_falls_back_to_uploaded_logo_then_built_in_emblem(): void
+    {
+        $settings = app(SettingsService::class);
+
+        $this->get('/')->assertSee('<link rel="icon" href="'.asset('favicon-32x32.png').'">', false);
+
+        $settings->set('site.logo', 'branding/logo.png');
+        $this->get('/')->assertSee('<link rel="icon" href="'.asset('storage/branding/logo.png').'">', false);
+
+        $settings->set('site.favicon', 'branding/fav.png');
+        $this->get('/')->assertSee('<link rel="icon" href="'.asset('storage/branding/fav.png').'">', false);
+    }
 }

@@ -94,7 +94,12 @@ class SettingsService
                 'name' => $all['site.name'],
                 'tagline' => $all['site.tagline'],
                 'logo' => $all['site.logo'] ? asset('storage/'.$all['site.logo']) : asset('images/logo.png'),
-                'favicon' => $all['site.favicon'] ? asset('storage/'.$all['site.favicon']) : asset('favicon.ico'),
+                // Uploaded favicon → uploaded logo → the built-in logo emblem (public/favicon-32x32.png).
+                'favicon' => match (true) {
+                    (bool) $all['site.favicon'] => asset('storage/'.$all['site.favicon']),
+                    (bool) $all['site.logo'] => asset('storage/'.$all['site.logo']),
+                    default => asset('favicon-32x32.png'),
+                },
                 'ticker' => $all['site.ticker'],
             ],
             'contact' => [
