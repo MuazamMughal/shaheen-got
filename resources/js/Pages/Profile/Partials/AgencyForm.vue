@@ -1,10 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useForm, usePage } from '@inertiajs/vue3';
 import { XMarkIcon } from '@heroicons/vue/24/outline';
 import Input from '@/Components/ui/Input.vue';
 import Button from '@/Components/ui/Button.vue';
 import ImageUpload from '@/Components/ui/ImageUpload.vue';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
+import { agencyRules } from '@/Composables/agencyRules';
 
 const props = defineProps({ agency: { type: Object, required: true } });
 const loginEmail = usePage().props.auth.user.email;
@@ -22,12 +24,23 @@ function addEmail() {
     if (e && e !== loginEmail && !form.notification_emails.includes(e)) form.notification_emails.push(e);
     newEmail.value = '';
 }
-const emailErrors = () => Object.entries(form.errors).filter(([k]) => k.startsWith('notification_emails')).map(([, v]) => v);
+const emailErrors = computed(() => [...new Set(Object.entries(form.errors).filter(([k]) => k.startsWith('notification_emails')).map(([, v]) => v))]);
+
+// Mirrors Agent\AgencyController@update.
+const { validate } = useValidation(form, {
+    ...agencyRules,
+    notification_emails: [
+        r.maxItems(5, 'You can add up to 5 notification emails.'),
+        r.each(r.email(), (e) => `"${e}" is not a valid email address.`),
+    ],
+});
 
 function submit() {
     if (newEmail.value.trim()) addEmail();
+    if (!validate()) return;
     form.post(route('agent.agency.update'), {
         preserveScroll: true, forceFormData: true,
+        onError: () => focusFirstError(),
         onSuccess: () => form.reset('logo', 'remove_logo'),
     });
 }
@@ -40,7 +53,7 @@ function submit() {
             <p class="mt-1 text-sm text-slate-500">Shown to our team on every booking you make.</p>
         </header>
 
-        <form class="mt-6 grid gap-5 sm:grid-cols-[1fr_180px]" @submit.prevent="submit">
+        <form class="mt-6 grid gap-5 sm:grid-cols-[1fr_180px]" novalidate @submit.prevent="submit">
             <div class="grid gap-4 sm:grid-cols-2">
                 <Input v-model="form.agency_name" label="Agency name" :error="form.errors.agency_name" required class="sm:col-span-2" />
                 <Input v-model="form.city" label="City" :error="form.errors.city" required />
@@ -56,18 +69,18 @@ function submit() {
             <div class="sm:col-span-2">
                 <p class="mb-1.5 text-sm font-medium text-slate-700">Booking notification emails</p>
                 <p class="mb-2 text-xs text-slate-500">Booking emails always go to <strong>{{ loginEmail }}</strong>. Add up to 5 more (e.g. your accounts team).</p>
-                <div class="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 focus-within:border-secondary-400 focus-within:ring-4 focus-within:ring-secondary-100">
+                <div :class="['flex flex-wrap gap-2 rounded-xl border bg-white p-2 focus-within:ring-4', emailErrors.length ? 'border-rose-300 focus-within:ring-rose-100' : 'border-slate-200 focus-within:border-secondary-400 focus-within:ring-secondary-100']">
                     <span v-for="(email, i) in form.notification_emails" :key="email" class="inline-flex items-center gap-1 rounded-lg bg-secondary-50 py-1 pl-2.5 pr-1 text-sm text-secondary">
                         {{ email }}
                         <button type="button" class="rounded p-0.5 hover:bg-secondary-100" :aria-label="`Remove ${email}`" @click="form.notification_emails.splice(i, 1)"><XMarkIcon class="size-3.5" /></button>
                     </span>
                     <input
-                        v-model="newEmail" type="email" placeholder="Add email and press Enter" aria-label="Add notification email"
+                        v-model="newEmail" type="email" placeholder="Add email and press Enter" aria-label="Add notification email" :aria-invalid="emailErrors.length > 0"
                         class="min-w-48 flex-1 border-0 bg-transparent px-1 py-1 text-sm focus:ring-0"
                         @keydown.enter.prevent="addEmail" @blur="addEmail"
                     />
                 </div>
-                <p v-for="err in emailErrors()" :key="err" class="mt-1.5 text-xs font-medium text-rose-600">{{ err }}</p>
+                <p v-for="err in emailErrors" :key="err" class="mt-1.5 text-xs font-medium text-rose-600">{{ err }}</p>
             </div>
 
             <div class="sm:col-span-2">

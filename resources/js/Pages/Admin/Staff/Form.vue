@@ -6,6 +6,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Button from '@/Components/ui/Button.vue';
 import Input from '@/Components/ui/Input.vue';
 import Select from '@/Components/ui/Select.vue';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({
     staff: { type: Object, default: null },
@@ -24,8 +25,23 @@ const form = useForm({
     password_confirmation: '',
 });
 
+// Mirrors StaffRequest. On edit the password is optional (blank keeps the current one).
+const { validate, reset: resetValidation } = useValidation(form, {
+    name: [r.required('Enter the full name.'), r.max(255)],
+    email: [r.required('Enter an email address.'), r.email(), r.max(255)],
+    phone: [r.max(30), r.pattern(/^[0-9+\-\s()]*$/, 'Phone can only contain digits, spaces and + - ( ).')],
+    role_id: [r.required('Choose a role.')],
+    status: [r.required('Choose a status.')],
+    password: [...(editing.value ? [] : [r.required('Choose a password.')]), r.min(8, 'Password must be at least 8 characters.')],
+    password_confirmation: [
+        (v) => (form.password && !v ? 'Confirm the password.' : null),
+        r.same(() => form.password, 'Passwords do not match.'),
+    ],
+});
+
 function submit() {
-    const opts = { onFinish: () => form.reset('password', 'password_confirmation') };
+    if (!validate()) return;
+    const opts = { onError: () => focusFirstError(), onFinish: () => { resetValidation(); form.reset('password', 'password_confirmation'); } };
     if (editing.value) form.put(route('admin.staff.update', props.staff.id), opts);
     else form.post(route('admin.staff.store'), opts);
 }
@@ -33,7 +49,7 @@ function submit() {
 
 <template>
     <AdminLayout :title="editing ? `Edit ${staff.name}` : 'Add staff member'" subtitle="Staff sign in to the admin panel with the role you assign">
-        <form class="mx-auto max-w-3xl space-y-6" @submit.prevent="submit">
+        <form class="mx-auto max-w-3xl space-y-6" novalidate @submit.prevent="submit">
             <section class="card p-6">
                 <h2 class="text-base font-semibold">Details</h2>
                 <div class="mt-5 grid gap-5 sm:grid-cols-2">
@@ -64,7 +80,7 @@ function submit() {
                 <p v-if="editing" class="mt-1 text-sm text-slate-500">Leave blank to keep the current password.</p>
                 <div class="mt-5 grid gap-5 sm:grid-cols-2">
                     <Input v-model="form.password" label="Password" type="password" :error="form.errors.password" :required="!editing" autocomplete="new-password" />
-                    <Input v-model="form.password_confirmation" label="Confirm password" type="password" :required="!editing" autocomplete="new-password" />
+                    <Input v-model="form.password_confirmation" label="Confirm password" type="password" :error="form.errors.password_confirmation" :required="!editing" autocomplete="new-password" />
                 </div>
             </section>
 

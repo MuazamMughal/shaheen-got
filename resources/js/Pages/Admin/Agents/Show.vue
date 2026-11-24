@@ -14,6 +14,8 @@ import EmptyState from '@/Components/ui/EmptyState.vue';
 import AgentStatusBadge from '@/Components/agents/AgentStatusBadge.vue';
 import AgentActionDialog from '@/Components/agents/AgentActionDialog.vue';
 import { usePermissions } from '@/Composables/usePermissions';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
+import { agencyRules } from '@/Composables/agencyRules';
 
 const props = defineProps({
     agent: { type: Object, required: true },
@@ -30,7 +32,17 @@ const form = useForm({
     agency_name: props.agent.agency_name ?? '', name: props.agent.name, email: props.agent.email,
     phone: props.agent.phone ?? '', whatsapp: props.agent.whatsapp ?? '', city: props.agent.city ?? '', address: props.agent.address ?? '',
 });
-const save = () => form.put(route('admin.agents.update', props.agent.id), { preserveScroll: true, onSuccess: () => (editing.value = false) });
+const { validate, reset: resetValidation } = useValidation(form, {
+    ...agencyRules,
+    name: [r.required('Enter the contact name.'), r.max(120)],
+    email: [r.required('Enter the login email.'), r.email(), r.max(255)],
+});
+const openEdit = () => { form.reset(); form.clearErrors(); resetValidation(); editing.value = true; };
+const save = () => validate() && form.put(route('admin.agents.update', props.agent.id), {
+    preserveScroll: true,
+    onSuccess: () => { editing.value = false; form.defaults(); },
+    onError: () => focusFirstError(),
+});
 </script>
 
 <template>
@@ -76,7 +88,7 @@ const save = () => form.put(route('admin.agents.update', props.agent.id), { pres
                                 <Button v-if="agent.status === 'approved'" variant="secondary" block class="!text-rose-600" @click="act('suspend')"><NoSymbolIcon class="size-4" /> Suspend</Button>
                                 <Button v-if="agent.status === 'suspended'" variant="success" block @click="act('reactivate')"><ArrowPathIcon class="size-4" /> Reactivate</Button>
                             </template>
-                            <Button v-if="can('agents.edit')" variant="ghost" block @click="editing = true"><PencilSquareIcon class="size-4" /> Edit details</Button>
+                            <Button v-if="can('agents.edit')" variant="ghost" block @click="openEdit"><PencilSquareIcon class="size-4" /> Edit details</Button>
                         </div>
                     </div>
                 </div>
@@ -123,12 +135,12 @@ const save = () => form.put(route('admin.agents.update', props.agent.id), { pres
         <AgentActionDialog :action="action" @close="action = null" />
 
         <Modal :show="editing" max-width="2xl" title="Edit agent details" @close="editing = false">
-            <form id="agent-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="save">
+            <form id="agent-form" class="grid gap-4 sm:grid-cols-2" novalidate @submit.prevent="save">
                 <Input v-model="form.agency_name" label="Agency name" :error="form.errors.agency_name" required class="sm:col-span-2" />
                 <Input v-model="form.name" label="Contact name" :error="form.errors.name" required />
                 <Input v-model="form.email" label="Login email" type="email" :error="form.errors.email" required />
-                <Input v-model="form.phone" label="Phone" :error="form.errors.phone" required />
-                <Input v-model="form.whatsapp" label="WhatsApp" :error="form.errors.whatsapp" />
+                <Input v-model="form.phone" label="Phone" type="tel" :error="form.errors.phone" required />
+                <Input v-model="form.whatsapp" label="WhatsApp" type="tel" placeholder="923xxxxxxxxx" :error="form.errors.whatsapp" />
                 <Input v-model="form.city" label="City" :error="form.errors.city" required />
                 <Input v-model="form.address" label="Address" :error="form.errors.address" />
             </form>

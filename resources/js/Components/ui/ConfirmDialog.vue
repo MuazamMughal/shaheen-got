@@ -10,6 +10,7 @@ defineProps({
     cancelText: { type: String, default: 'Cancel' },
     variant: { type: String, default: 'danger' }, // danger | primary | success
     loading: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false }, // e.g. until a required reason is typed
 });
 
 const emit = defineEmits(['confirm', 'close']);
@@ -36,7 +37,7 @@ const emit = defineEmits(['confirm', 'close']);
         </div>
         <template #footer>
             <Button variant="secondary" :disabled="loading" @click="emit('close')">{{ cancelText }}</Button>
-            <Button :variant="variant" :loading="loading" @click="emit('confirm')">{{ confirmText }}</Button>
+            <Button :variant="variant" :loading="loading" :disabled="disabled" @click="emit('confirm')">{{ confirmText }}</Button>
         </template>
     </Modal>
 </template>

@@ -79,10 +79,12 @@ class AgentController extends Controller
             'agency_name' => ['required', 'string', 'max:160'],
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($agent->id)],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['required', 'string', 'max:30', 'regex:/^[0-9+\-\s()]{7,30}$/'],
             'whatsapp' => ['nullable', 'digits_between:10,15'],
             'city' => ['required', 'string', 'max:80'],
             'address' => ['nullable', 'string', 'max:500'],
+        ], [
+            'phone.regex' => 'Enter a valid phone number.',
         ]);
 
         $agent->update(['name' => $data['name'], 'email' => $data['email'], 'phone' => $data['phone']]);
@@ -150,7 +152,7 @@ class AgentController extends Controller
             'id' => $u->id,
             'name' => $u->name,
             'email' => $u->email,
-            'phone' => $u->phone,
+            'phone' => $u->phone ?? $u->agency?->phone, // older agents only have it on the agency
             'status' => $u->status->value,
             'status_label' => $u->status->label(),
             'status_reason' => $u->status_reason,

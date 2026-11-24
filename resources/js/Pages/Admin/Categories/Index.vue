@@ -14,6 +14,7 @@ import EmptyState from '@/Components/ui/EmptyState.vue';
 import ConfirmDialog from '@/Components/ui/ConfirmDialog.vue';
 import Badge from '@/Components/ui/Badge.vue';
 import { useMasterList } from '@/Composables/useMasterList';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({ categories: { type: Array, required: true } });
 
@@ -31,8 +32,16 @@ const form = useForm({
     image: null, flag_icon: null, remove_image: false, remove_flag_icon: false,
 });
 
+// Mirrors CategoryRequest (image sizes are checked by ImageUpload).
+const { validate, reset: resetValidation } = useValidation(form, {
+    name: [r.required('Enter the category name.'), r.max(120)],
+    country: [r.max(120)],
+    description: [r.max(2000)],
+});
+
 watch(editing, (record) => {
     if (!record) return;
+    resetValidation();
     form.clearErrors();
     form.defaults({
         name: record.name ?? '', country: record.country ?? '', description: record.description ?? '',
@@ -42,7 +51,8 @@ watch(editing, (record) => {
 });
 
 function submit() {
-    const opts = { preserveScroll: true, forceFormData: true, onSuccess: closeForm };
+    const opts = { preserveScroll: true, forceFormData: true, onSuccess: closeForm, onError: () => focusFirstError() };
+    if (!validate()) return;
     if (editing.value?.id) {
         form.transform((d) => ({ ...d, _method: 'put' })).post(route('admin.categories.update', editing.value.id), opts);
     } else {
@@ -92,16 +102,16 @@ function submit() {
         </div>
 
         <Modal :show="!!editing" max-width="2xl" :title="editing?.id ? 'Edit category' : 'New category'" @close="closeForm">
-            <form id="category-form" class="grid gap-5 sm:grid-cols-2" @submit.prevent="submit">
+            <form id="category-form" class="grid gap-5 sm:grid-cols-2" novalidate @submit.prevent="submit">
                 <Input v-model="form.name" label="Name" placeholder="Umrah Groups" :error="form.errors.name" required class="sm:col-span-2" />
                 <Input v-model="form.country" label="Country" placeholder="Kingdom of Saudi Arabia" :error="form.errors.country" class="sm:col-span-2" />
                 <ImageUpload
                     v-model="form.image" label="Cover image" :current="editing?.image_url" :removed="form.remove_image"
-                    :error="form.errors.image" hint="Landscape photo, max 4 MB" @remove="form.remove_image = true"
+                    :error="form.errors.image" :max-kb="4096" hint="Landscape photo, max 4 MB" @remove="form.remove_image = true"
                 />
                 <ImageUpload
                     v-model="form.flag_icon" label="Flag icon" :current="editing?.flag_url" :removed="form.remove_flag_icon"
-                    :error="form.errors.flag_icon" hint="Square, max 1 MB" aspect="aspect-[16/9]" fit="object-contain"
+                    :error="form.errors.flag_icon" :max-kb="1024" hint="Square, max 1 MB" aspect="aspect-[16/9]" fit="object-contain"
                     accept="image/png,image/jpeg,image/webp" @remove="form.remove_flag_icon = true"
                 />
                 <Textarea v-model="form.description" label="Description" :error="form.errors.description" class="sm:col-span-2" hint="Optional, shown on the category page" />

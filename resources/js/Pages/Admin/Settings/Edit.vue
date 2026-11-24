@@ -8,6 +8,7 @@ import Input from '@/Components/ui/Input.vue';
 import Textarea from '@/Components/ui/Textarea.vue';
 import ImageUpload from '@/Components/ui/ImageUpload.vue';
 import Badge from '@/Components/ui/Badge.vue';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({
     values: { type: Object, required: true },
@@ -50,24 +51,43 @@ function addEmail() {
     newEmail.value = '';
 }
 const removeEmail = (i) => form.admin_emails.splice(i, 1);
-const emailErrors = computed(() => Object.entries(form.errors).filter(([k]) => k.startsWith('admin_emails')).map(([, v]) => v));
+const emailErrors = computed(() => [...new Set(Object.entries(form.errors).filter(([k]) => k.startsWith('admin_emails')).map(([, v]) => v))]);
+
+const hex = (label) => [r.required(`Choose a ${label} color.`), r.pattern(HEX, 'Use a hex color like #0B1B4D.')];
+const { validate } = useValidation(form, {
+    theme_primary: hex('primary'),
+    theme_secondary: hex('secondary'),
+    theme_tertiary: hex('tertiary'),
+    site_name: [r.required('Enter the site name.'), r.max(120)],
+    site_tagline: [r.max(160)],
+    site_ticker: [r.max(500)],
+    contact_whatsapp: [r.pattern(/^\+?[0-9 ]{8,20}$/, 'Enter 8–20 digits with the country code, e.g. 923001234567.')],
+    contact_phone: [r.max(40)],
+    contact_email: [r.email(), r.max(255)],
+    contact_address: [r.max(500)],
+    admin_emails: [r.maxItems(10, 'You can add up to 10 notification emails.'), r.each(r.email(), (e) => `"${e}" is not a valid email address.`)],
+    low_seat_threshold: [r.required('Enter a number of seats.'), r.integer({ min: 0, max: 500 }, 'Enter a whole number from 0 to 500.')],
+});
 
 function submit() {
     if (newEmail.value.trim()) addEmail();
+    if (!validate()) return;
     form.post(route('admin.settings.update'), {
         preserveScroll: true,
+        onError: () => focusFirstError(),
         forceFormData: true,
         onSuccess: () => form.reset('logo', 'favicon', 'remove_logo', 'remove_favicon'),
     });
 }
 
 const testForm = useForm({ email: usePage().props.auth.user.email });
-const sendTest = () => testForm.post(route('admin.settings.test-email'), { preserveScroll: true });
+const { validate: validateTest } = useValidation(testForm, { email: [r.required('Enter an email address.'), r.email()] });
+const sendTest = () => validateTest() && testForm.post(route('admin.settings.test-email'), { preserveScroll: true });
 </script>
 
 <template>
     <AdminLayout title="Settings" subtitle="Branding, contact details and notifications">
-        <form class="mx-auto max-w-5xl space-y-6 pb-24" @submit.prevent="submit">
+        <form class="mx-auto max-w-5xl space-y-6 pb-24" novalidate @submit.prevent="submit">
             <!-- Appearance -->
             <section class="card overflow-hidden">
                 <header class="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-4">
@@ -131,10 +151,10 @@ const sendTest = () => testForm.post(route('admin.settings.test-email'), { prese
                     <ImageUpload
                         v-model="form.logo" label="Logo" :current="files.logo" :removed="form.remove_logo" :error="form.errors.logo"
                         aspect="aspect-[2/1]" fit="object-contain" accept="image/png,image/jpeg,image/webp"
-                        hint="Square works best. Leave empty to use the default logo." @remove="form.remove_logo = true"
+                        hint="Square works best, max 2 MB. Leave empty to use the default logo." @remove="form.remove_logo = true"
                     />
                     <ImageUpload
-                        v-model="form.favicon" label="Favicon" :current="files.favicon" :removed="form.remove_favicon" :error="form.errors.favicon"
+                        v-model="form.favicon" label="Favicon" :current="files.favicon" :removed="form.remove_favicon" :error="form.errors.favicon" :max-kb="512"
                         aspect="aspect-[2/1]" fit="object-contain" accept="image/png,image/x-icon,.ico"
                         hint="PNG or ICO, max 512 KB" @remove="form.remove_favicon = true"
                     />
@@ -168,13 +188,13 @@ const sendTest = () => testForm.post(route('admin.settings.test-email'), { prese
                 <div class="grid gap-5 sm:grid-cols-[1fr_220px]">
                     <div>
                         <p class="mb-1.5 text-sm font-medium text-slate-700">Admin notification emails</p>
-                        <div class="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 focus-within:border-secondary-400 focus-within:ring-4 focus-within:ring-secondary-100">
+                        <div :class="['flex flex-wrap gap-2 rounded-xl border bg-white p-2 focus-within:ring-4', emailErrors.length ? 'border-rose-300 focus-within:ring-rose-100' : 'border-slate-200 focus-within:border-secondary-400 focus-within:ring-secondary-100']">
                             <span v-for="(email, i) in form.admin_emails" :key="email" class="inline-flex items-center gap-1 rounded-lg bg-secondary-50 py-1 pl-2.5 pr-1 text-sm text-secondary">
                                 {{ email }}
                                 <button type="button" class="rounded p-0.5 hover:bg-secondary-100" :aria-label="`Remove ${email}`" @click="removeEmail(i)"><XMarkIcon class="size-3.5" /></button>
                             </span>
                             <input
-                                v-model="newEmail" type="email" placeholder="Add email and press Enter" aria-label="Add notification email"
+                                v-model="newEmail" type="email" placeholder="Add email and press Enter" aria-label="Add notification email" :aria-invalid="emailErrors.length > 0"
                                 class="min-w-48 flex-1 border-0 bg-transparent px-1 py-1 text-sm focus:ring-0"
                                 @keydown.enter.prevent="addEmail" @keydown.,.prevent="addEmail" @blur="addEmail"
                             />

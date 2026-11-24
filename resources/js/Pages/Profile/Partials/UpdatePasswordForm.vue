@@ -1,13 +1,8 @@
 <script setup>
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
-
-const passwordInput = ref(null);
-const currentPasswordInput = ref(null);
+import Input from '@/Components/ui/Input.vue';
+import Button from '@/Components/ui/Button.vue';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const form = useForm({
     current_password: '',
@@ -15,19 +10,23 @@ const form = useForm({
     password_confirmation: '',
 });
 
+// Mirrors PasswordController@update.
+const { validate, touch, reset: resetValidation } = useValidation(form, {
+    current_password: [r.required('Enter your current password.')],
+    password: [r.required('Choose a new password.'), r.min(8, 'Password must be at least 8 characters.')],
+    password_confirmation: [r.required('Confirm your new password.'), r.same(() => form.password, 'Passwords do not match.')],
+});
+
 const updatePassword = () => {
+    if (!validate()) return;
     form.put(route('password.update'), {
         preserveScroll: true,
-        onSuccess: () => form.reset(),
+        onSuccess: () => { resetValidation(); form.reset(); },
         onError: () => {
-            if (form.errors.password) {
-                form.reset('password', 'password_confirmation');
-                passwordInput.value.focus();
-            }
-            if (form.errors.current_password) {
-                form.reset('current_password');
-                currentPasswordInput.value.focus();
-            }
+            resetValidation();
+            if (form.errors.password) form.reset('password', 'password_confirmation');
+            if (form.errors.current_password) form.reset('current_password');
+            focusFirstError();
         },
     });
 };
@@ -36,85 +35,28 @@ const updatePassword = () => {
 <template>
     <section>
         <header>
-            <h2 class="text-lg font-medium text-slate-900">
-                Update Password
-            </h2>
-
-            <p class="mt-1 text-sm text-slate-600">
-                Ensure your account is using a long, random password to stay
-                secure.
-            </p>
+            <h2 class="text-lg font-semibold">Update password</h2>
+            <p class="mt-1 text-sm text-slate-500">Use a long, random password to keep your account secure.</p>
         </header>
 
-        <form @submit.prevent="updatePassword" class="mt-6 space-y-6">
-            <div>
-                <InputLabel for="current_password" value="Current Password" />
-
-                <TextInput
-                    id="current_password"
-                    ref="currentPasswordInput"
-                    v-model="form.current_password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="current-password"
-                />
-
-                <InputError
-                    :message="form.errors.current_password"
-                    class="mt-2"
-                />
-            </div>
-
-            <div>
-                <InputLabel for="password" value="New Password" />
-
-                <TextInput
-                    id="password"
-                    ref="passwordInput"
-                    v-model="form.password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="new-password"
-                />
-
-                <InputError :message="form.errors.password" class="mt-2" />
-            </div>
-
-            <div>
-                <InputLabel
-                    for="password_confirmation"
-                    value="Confirm Password"
-                />
-
-                <TextInput
-                    id="password_confirmation"
-                    v-model="form.password_confirmation"
-                    type="password"
-                    class="mt-1 block w-full"
-                    autocomplete="new-password"
-                />
-
-                <InputError
-                    :message="form.errors.password_confirmation"
-                    class="mt-2"
-                />
-            </div>
+        <form class="mt-6 max-w-xl space-y-5" novalidate @submit.prevent="updatePassword">
+            <Input
+                v-model="form.current_password" name="current_password" label="Current password" type="password"
+                :error="form.errors.current_password" required autocomplete="current-password" @blur="touch('current_password')"
+            />
+            <Input
+                v-model="form.password" name="password" label="New password" type="password" hint="At least 8 characters."
+                :error="form.errors.password" required autocomplete="new-password" @blur="touch('password')"
+            />
+            <Input
+                v-model="form.password_confirmation" name="password_confirmation" label="Confirm new password" type="password"
+                :error="form.errors.password_confirmation" required autocomplete="new-password" @blur="touch('password_confirmation')"
+            />
 
             <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">Save</PrimaryButton>
-
-                <Transition
-                    enter-active-class="transition ease-in-out"
-                    enter-from-class="opacity-0"
-                    leave-active-class="transition ease-in-out"
-                    leave-to-class="opacity-0"
-                >
-                    <p
-                        v-if="form.recentlySuccessful"
-                        class="text-sm text-slate-600"
-                    >
-                        Saved.
-                    </p>
+                <Button type="submit" :loading="form.processing">Update password</Button>
+                <Transition enter-active-class="transition" enter-from-class="opacity-0" leave-active-class="transition" leave-to-class="opacity-0">
+                    <p v-if="form.recentlySuccessful" class="text-sm font-medium text-emerald-600">Saved.</p>
                 </Transition>
             </div>
         </form>

@@ -182,4 +182,18 @@ class AgentPortalTest extends TestCase
         $this->assertSame('Edited Travels', $agent->agency->refresh()->agency_name);
         $this->assertSame('ali@example.com', $agent->refresh()->email);
     }
+
+    public function test_admin_agent_edit_uses_the_same_phone_rules_as_the_agency_form(): void
+    {
+        $agent = User::factory()->withAgency()->create();
+        $payload = ['agency_name' => 'Edited Travels', 'name' => 'Ali', 'email' => 'ali@example.com', 'city' => 'Lahore'];
+
+        $this->actingAs($this->admin)->put("/admin/agents/{$agent->id}", [...$payload, 'phone' => 'call me maybe', 'whatsapp' => '123'])
+            ->assertSessionHasErrors(['phone' => 'Enter a valid phone number.', 'whatsapp']);
+
+        $this->actingAs($this->admin)->put("/admin/agents/{$agent->id}", [...$payload, 'phone' => '+92 300 111-2222', 'whatsapp' => '+92 300 1112222'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('923001112222', $agent->agency->refresh()->whatsapp);
+    }
 }

@@ -12,6 +12,7 @@ import Select from '@/Components/ui/Select.vue';
 import TimeInput from '@/Components/ui/TimeInput.vue';
 import { usePermissions } from '@/Composables/usePermissions';
 import { formatPKR } from '@/Composables/useMoney';
+import { focusFirstError, rules as r, today, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({
     flight: { type: Object, default: null },
@@ -87,10 +88,43 @@ const preview = computed(() => ({
 
 const title = computed(() => (editing.value ? `Edit flight ${props.flight.flight_code}` : props.isDuplicate ? 'Duplicate flight' : 'Add flight'));
 
+// Mirrors FlightRequest.
+const price = (label) => [r.required(`Enter the ${label}.`), r.integer({ min: 0, max: 10000000 }, `${label[0].toUpperCase()}${label.slice(1)} must be a whole amount from 0 to 10,000,000.`)];
+const minSeats = Math.max(1, Number(f.seats_confirmed ?? 0));
+const { validate } = useValidation(form, {
+    category_id: [r.required('Choose a main category.')],
+    sector_id: [r.required('Choose a sector.')],
+    airline_id: [r.required('Choose an airline.')],
+    departure_date: [
+        r.required('Choose the departure date.'),
+        ...(editing.value ? [] : [r.dateAfterOrEqual(today, 'Departure date cannot be in the past.')]),
+    ],
+    arrival_date: [r.required('Choose the arrival date.'), r.dateAfterOrEqual(() => form.departure_date, 'Arrival date must be on or after the departure date.')],
+    flight_code: [r.required('Enter the flight code, e.g. SV801 / SV800.'), r.max(60)],
+    departure_time: [r.required('Choose the departure time.')],
+    arrival_time: [r.required('Choose the arrival time.')],
+    baggage_type_id: [r.required('Choose a bag type.')],
+    ...(showPrices ? {
+        fare_price: price('fare price'),
+        adult_price: price('adult seat price'),
+        child_price: price('child seat price'),
+        infant_price: price('infant seat price'),
+    } : {}),
+    total_seats: [
+        r.required('Enter how many seats are available.'),
+        r.integer({ min: minSeats, max: 1000 }, minSeats > 1
+            ? `Seats must be from ${minSeats} (already confirmed) to 1000.`
+            : 'Seats must be a whole number from 1 to 1000.'),
+    ],
+    pnr: [r.max(30)],
+});
+
 function submit(publish = false) {
     form.publish = publish;
-    if (editing.value) form.put(route('admin.flights.update', props.flight.id), { preserveScroll: true });
-    else form.post(route('admin.flights.store'), { preserveScroll: true });
+    if (!validate()) return;
+    const options = { preserveScroll: true, onError: () => focusFirstError() };
+    if (editing.value) form.put(route('admin.flights.update', props.flight.id), options);
+    else form.post(route('admin.flights.store'), options);
 }
 
 const segmentClass = (active) => [
@@ -105,7 +139,7 @@ const segmentClass = (active) => [
             <DocumentDuplicateIcon class="size-5 text-tertiary-700" /> Everything is copied except the dates and PNR.
         </div>
 
-        <form class="mx-auto grid max-w-6xl gap-6 pb-24 xl:grid-cols-[1fr_320px]" @submit.prevent="submit(false)">
+        <form class="mx-auto grid max-w-6xl gap-6 pb-24 xl:grid-cols-[1fr_320px]" novalidate @submit.prevent="submit(false)">
             <div class="space-y-6">
                 <!-- Route -->
                 <section class="card p-6">

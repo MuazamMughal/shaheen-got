@@ -31,6 +31,7 @@ class AgencyController extends Controller
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'remove_logo' => ['boolean'],
         ], [
+            'phone.regex' => 'Enter a valid phone number.',
             'notification_emails.max' => 'You can add up to 5 notification emails.',
             'notification_emails.*.email' => 'Each notification email must be a valid address.',
         ]);

@@ -12,6 +12,7 @@ import ImageUpload from '@/Components/ui/ImageUpload.vue';
 import EmptyState from '@/Components/ui/EmptyState.vue';
 import ConfirmDialog from '@/Components/ui/ConfirmDialog.vue';
 import { useMasterList } from '@/Composables/useMasterList';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({ airlines: { type: Array, required: true } });
 
@@ -26,15 +27,23 @@ const filtered = computed(() => {
 
 const form = useForm({ name: '', iata_code: '', is_active: true, logo: null, remove_logo: false });
 
+// Mirrors AirlineRequest.
+const { validate, reset: resetValidation } = useValidation(form, {
+    name: [r.required('Enter the airline name.'), r.max(120)],
+    iata_code: [r.pattern(/^[A-Za-z0-9]{2,3}$/, 'IATA code must be 2 or 3 letters or digits, e.g. SV.')],
+});
+
 watch(editing, (record) => {
     if (!record) return;
+    resetValidation();
     form.clearErrors();
     form.defaults({ name: record.name ?? '', iata_code: record.iata_code ?? '', is_active: record.is_active ?? true, logo: null, remove_logo: false });
     form.reset();
 });
 
 function submit() {
-    const opts = { preserveScroll: true, forceFormData: true, onSuccess: closeForm };
+    const opts = { preserveScroll: true, forceFormData: true, onSuccess: closeForm, onError: () => focusFirstError() };
+    if (!validate()) return;
     if (editing.value?.id) form.transform((d) => ({ ...d, _method: 'put' })).post(route('admin.airlines.update', editing.value.id), opts);
     else form.transform((d) => d).post(route('admin.airlines.store'), opts);
 }
@@ -80,7 +89,7 @@ function submit() {
         </div>
 
         <Modal :show="!!editing" max-width="lg" :title="editing?.id ? 'Edit airline' : 'New airline'" @close="closeForm">
-            <form id="airline-form" class="grid gap-5" @submit.prevent="submit">
+            <form id="airline-form" class="grid gap-5" novalidate @submit.prevent="submit">
                 <div class="grid gap-5 sm:grid-cols-[1fr_120px]">
                     <Input v-model="form.name" label="Airline name" placeholder="Saudia" :error="form.errors.name" required />
                     <Input v-model="form.iata_code" label="IATA code" placeholder="SV" maxlength="3" :error="form.errors.iata_code" class="[&_input]:uppercase" />

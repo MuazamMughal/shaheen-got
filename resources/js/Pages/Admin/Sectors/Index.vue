@@ -13,6 +13,7 @@ import EmptyState from '@/Components/ui/EmptyState.vue';
 import ConfirmDialog from '@/Components/ui/ConfirmDialog.vue';
 import ReorderButtons from '@/Components/ui/ReorderButtons.vue';
 import { useMasterList } from '@/Composables/useMasterList';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({
     sectors: { type: Array, required: true },
@@ -42,8 +43,18 @@ const groups = computed(() => {
 const form = useForm({ category_id: '', origin: '', destination: '', trip_type: 'return', name: '', is_active: true });
 const nameTouched = ref(false);
 
+// Mirrors SectorRequest.
+const { validate, reset: resetValidation } = useValidation(form, {
+    category_id: [r.required('Choose a category.')],
+    origin: [r.required('Enter where the flight departs from.'), r.max(80)],
+    destination: [r.required('Enter the destination.'), r.max(80)],
+    trip_type: [r.required('Choose a trip type.')],
+    name: [r.required('Enter the sector name.'), r.max(160)],
+});
+
 watch(editing, (record) => {
     if (!record) return;
+    resetValidation();
     form.clearErrors();
     form.defaults({
         category_id: record.category_id ?? (categoryFilter.value || ''),
@@ -64,7 +75,8 @@ const suggestedName = computed(() => {
 watch(suggestedName, (v) => { if (!nameTouched.value) form.name = v; });
 
 function submit() {
-    const opts = { preserveScroll: true, onSuccess: closeForm };
+    const opts = { preserveScroll: true, onSuccess: closeForm, onError: () => focusFirstError() };
+    if (!validate()) return;
     if (editing.value?.id) form.put(route('admin.sectors.update', editing.value.id), opts);
     else form.post(route('admin.sectors.store'), opts);
 }
@@ -123,7 +135,7 @@ function submit() {
         </div>
 
         <Modal :show="!!editing" max-width="xl" :title="editing?.id ? 'Edit sector' : 'New sector'" @close="closeForm">
-            <form id="sector-form" class="grid gap-5 sm:grid-cols-2" @submit.prevent="submit">
+            <form id="sector-form" class="grid gap-5 sm:grid-cols-2" novalidate @submit.prevent="submit">
                 <Select v-model="form.category_id" label="Category" :options="categories" placeholder="Select category" :error="form.errors.category_id" required class="sm:col-span-2" />
                 <Input v-model="form.origin" label="From" placeholder="MULTAN" :error="form.errors.origin" required class="[&_input]:uppercase" />
                 <Input v-model="form.destination" label="To" placeholder="JEDDAH" :error="form.errors.destination" required class="[&_input]:uppercase" />

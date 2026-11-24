@@ -7,6 +7,7 @@ import Input from '@/Components/ui/Input.vue';
 import Button from '@/Components/ui/Button.vue';
 import Checkbox from '@/Components/Checkbox.vue';
 import { rules as r, useValidation } from '@/Composables/useValidation';
+import { agencyRules } from '@/Composables/agencyRules';
 
 const form = useForm({
     agency_name: '', name: '', city: '', address: '', phone: '', whatsapp: '',
@@ -15,12 +16,10 @@ const form = useForm({
 
 // Mirrors RegisteredUserController::store.
 const { validate, touch, reset: resetValidation } = useValidation(form, {
+    ...agencyRules,
     agency_name: [r.required('Enter your agency name.'), r.max(160)],
     city: [r.required('Enter your city.'), r.max(80)],
-    address: [r.max(500)],
     name: [r.required('Enter the contact person’s full name.'), r.max(120)],
-    phone: [r.required('Enter a phone number.'), r.pattern(/^[0-9+\-\s()]{7,30}$/, 'Enter a valid phone number.')],
-    whatsapp: [r.digits(10, 15, 'Enter a WhatsApp number with country code (10–15 digits).')],
     email: [r.required('Enter your email address.'), r.email(), r.max(255)],
     password: [r.required('Choose a password.'), r.min(8, 'Password must be at least 8 characters.')],
     password_confirmation: [r.required('Confirm your password.'), r.same(() => form.password, 'Passwords do not match.')],

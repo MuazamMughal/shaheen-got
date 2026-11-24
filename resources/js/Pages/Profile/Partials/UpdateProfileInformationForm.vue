@@ -1,17 +1,12 @@
 <script setup>
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
+import Input from '@/Components/ui/Input.vue';
+import Button from '@/Components/ui/Button.vue';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 defineProps({
-    mustVerifyEmail: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    mustVerifyEmail: { type: Boolean },
+    status: { type: String },
 });
 
 const user = usePage().props.auth.user;
@@ -20,91 +15,41 @@ const form = useForm({
     name: user.name,
     email: user.email,
 });
+
+// Mirrors ProfileUpdateRequest.
+const { validate, touch } = useValidation(form, {
+    name: [r.required('Enter your name.'), r.max(255)],
+    email: [r.required('Enter your email address.'), r.email(), r.max(255)],
+});
+
+const submit = () => validate() && form.patch(route('profile.update'), { preserveScroll: true, onError: () => focusFirstError() });
 </script>
 
 <template>
     <section>
         <header>
-            <h2 class="text-lg font-medium text-slate-900">
-                Profile Information
-            </h2>
-
-            <p class="mt-1 text-sm text-slate-600">
-                Update your account's profile information and email address.
-            </p>
+            <h2 class="text-lg font-semibold">Profile information</h2>
+            <p class="mt-1 text-sm text-slate-500">Update your name and the email address you sign in with.</p>
         </header>
 
-        <form
-            @submit.prevent="form.patch(route('profile.update'))"
-            class="mt-6 space-y-6"
-        >
-            <div>
-                <InputLabel for="name" value="Name" />
+        <form class="mt-6 max-w-xl space-y-5" novalidate @submit.prevent="submit">
+            <Input v-model="form.name" name="name" label="Name" :error="form.errors.name" required autocomplete="name" @blur="touch('name')" />
+            <Input v-model="form.email" name="email" label="Email" type="email" :error="form.errors.email" required autocomplete="username" @blur="touch('email')" />
 
-                <TextInput
-                    id="name"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.name"
-                    required
-                    autofocus
-                    autocomplete="name"
-                />
-
-                <InputError class="mt-2" :message="form.errors.name" />
-            </div>
-
-            <div>
-                <InputLabel for="email" value="Email" />
-
-                <TextInput
-                    id="email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    required
-                    autocomplete="username"
-                />
-
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div v-if="mustVerifyEmail && user.email_verified_at === null">
-                <p class="mt-2 text-sm text-slate-800">
-                    Your email address is unverified.
-                    <Link
-                        :href="route('verification.send')"
-                        method="post"
-                        as="button"
-                        class="rounded-md text-sm text-slate-600 underline hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-secondary-200 focus:ring-offset-2"
-                    >
-                        Click here to re-send the verification email.
-                    </Link>
-                </p>
-
-                <div
-                    v-show="status === 'verification-link-sent'"
-                    class="mt-2 text-sm font-medium text-green-600"
-                >
+            <div v-if="mustVerifyEmail && user.email_verified_at === null" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Your email address is unverified.
+                <Link :href="route('verification.send')" method="post" as="button" class="font-semibold underline hover:text-amber-900">
+                    Re-send the verification email.
+                </Link>
+                <p v-show="status === 'verification-link-sent'" class="mt-2 font-medium text-emerald-700">
                     A new verification link has been sent to your email address.
-                </div>
+                </p>
             </div>
 
             <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">Save</PrimaryButton>
-
-                <Transition
-                    enter-active-class="transition ease-in-out"
-                    enter-from-class="opacity-0"
-                    leave-active-class="transition ease-in-out"
-                    leave-to-class="opacity-0"
-                >
-                    <p
-                        v-if="form.recentlySuccessful"
-                        class="text-sm text-slate-600"
-                    >
-                        Saved.
-                    </p>
+                <Button type="submit" :loading="form.processing">Save</Button>
+                <Transition enter-active-class="transition" enter-from-class="opacity-0" leave-active-class="transition" leave-to-class="opacity-0">
+                    <p v-if="form.recentlySuccessful" class="text-sm font-medium text-emerald-600">Saved.</p>
                 </Transition>
             </div>
         </form>

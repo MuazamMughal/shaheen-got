@@ -1,4 +1,4 @@
-import { watch } from 'vue';
+import { nextTick, watch } from 'vue';
 
 /*
  * Client-side validation for Inertia `useForm` forms.
@@ -10,7 +10,9 @@ import { watch } from 'vue';
  *   const { validate } = useValidation(form, {
  *       email: [rules.required('Enter your email.'), rules.email()],
  *   });
- *   const submit = () => validate() && form.post(...);
+ *   const submit = () => validate() && form.post(..., { onError: focusFirstError });
+ *
+ * A failed validate() moves focus to (and scrolls to) the first invalid field.
  */
 
 const isEmpty = (v) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
@@ -40,9 +42,52 @@ export const rules = {
     same: (other, msg = 'Values do not match.') => (v) => (isEmpty(v) || v === other() ? null : msg),
 
     accepted: (msg = 'This must be accepted.') => (v) => (v === true ? null : msg),
+
+    // Whole number within [min, max] (either bound optional).
+    integer: ({ min, max } = {}, msg) => (v) => {
+        if (isEmpty(v)) return null;
+        const s = String(v).trim();
+        if (!/^-?\d+$/.test(s)) return msg ?? 'Enter a whole number.';
+        const n = Number(s);
+        if (min !== undefined && n < min) return msg ?? `Must be at least ${min}.`;
+        if (max !== undefined && n > max) return msg ?? `Must not be more than ${max}.`;
+        return null;
+    },
+
+    // ISO dates (YYYY-MM-DD) compare correctly as strings.
+    dateAfterOrEqual: (other, msg) => (v) => {
+        const o = typeof other === 'function' ? other() : other;
+        return isEmpty(v) || isEmpty(o) || String(v) >= String(o) ? null : msg ?? 'Date is too early.';
+    },
+
+    // Every item of an array field must pass `rule`; reports the first failing item.
+    each: (rule, msg) => (list) => {
+        for (const item of list ?? []) {
+            const err = rule(item);
+            if (err) return msg ? msg(item) : err;
+        }
+        return null;
+    },
+
+    maxItems: (n, msg) => (list) => ((list ?? []).length <= n ? null : msg ?? `You can add up to ${n}.`),
 };
 
-export function useValidation(form, schema) {
+export const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Focus and scroll to the first visible invalid control (client or server errors).
+export function focusFirstError(root = document) {
+    nextTick(() => {
+        const el = [...root.querySelectorAll('[aria-invalid="true"]')].find((e) => e.offsetParent !== null);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.focus({ preventScroll: true });
+    });
+}
+
+export function useValidation(form, schema, { focus = true } = {}) {
     const touched = new Set();
 
     const check = (field) => {
@@ -67,6 +112,7 @@ export function useValidation(form, schema) {
             touched.add(f);
             if (!validateField(f)) ok = false;
         }
+        if (!ok && focus) focusFirstError();
         return ok;
     };
 
@@ -75,6 +121,7 @@ export function useValidation(form, schema) {
     watch(
         () => Object.keys(schema).map((f) => form[f]),
         () => touched.forEach((f) => validateField(f)),
+        { deep: true }, // array fields (email lists) change in place
     );
 
     // On blur: start validating a field once the user has typed something into it,

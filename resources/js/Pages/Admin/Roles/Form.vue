@@ -5,6 +5,7 @@ import { ArrowLeftIcon, CurrencyDollarIcon } from '@heroicons/vue/24/outline';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Button from '@/Components/ui/Button.vue';
 import Input from '@/Components/ui/Input.vue';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({
     role: { type: Object, default: null },
@@ -40,15 +41,19 @@ function toggleGroup(group) {
 const selectAll = () => (form.permissions = [...allPermissions.value]);
 const clearAll = () => (form.permissions = []);
 
+const { validate } = useValidation(form, { name: [r.required('Enter a role name.'), r.max(60)] });
+
 function submit() {
-    if (editing.value) form.put(route('admin.roles.update', props.role.id));
-    else form.post(route('admin.roles.store'));
+    if (!validate()) return;
+    const opts = { onError: () => focusFirstError() };
+    if (editing.value) form.put(route('admin.roles.update', props.role.id), opts);
+    else form.post(route('admin.roles.store'), opts);
 }
 </script>
 
 <template>
     <AdminLayout :title="editing ? `Edit role: ${role.name}` : 'New role'" subtitle="Choose exactly what this role can do">
-        <form class="mx-auto max-w-5xl space-y-6" @submit.prevent="submit">
+        <form class="mx-auto max-w-5xl space-y-6" novalidate @submit.prevent="submit">
             <div class="card p-6">
                 <div class="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-end">
                     <Input v-model="form.name" label="Role name" placeholder="e.g. Booking Desk" :error="form.errors.name" required autofocus />

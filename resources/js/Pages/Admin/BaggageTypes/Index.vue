@@ -11,6 +11,7 @@ import EmptyState from '@/Components/ui/EmptyState.vue';
 import ConfirmDialog from '@/Components/ui/ConfirmDialog.vue';
 import ReorderButtons from '@/Components/ui/ReorderButtons.vue';
 import { useMasterList } from '@/Composables/useMasterList';
+import { focusFirstError, rules as r, useValidation } from '@/Composables/useValidation';
 
 const props = defineProps({ baggageTypes: { type: Array, required: true } });
 
@@ -19,15 +20,23 @@ const { rows, editing, deleting, busy, openCreate, openEdit, closeForm, toggle, 
 
 const form = useForm({ label: '', description: '', is_active: true });
 
+// Mirrors BaggageTypeRequest.
+const { validate, reset: resetValidation } = useValidation(form, {
+    label: [r.required('Enter a label, e.g. 20+10 KG.'), r.max(120)],
+    description: [r.max(255)],
+});
+
 watch(editing, (record) => {
     if (!record) return;
+    resetValidation();
     form.clearErrors();
     form.defaults({ label: record.label ?? '', description: record.description ?? '', is_active: record.is_active ?? true });
     form.reset();
 });
 
 function submit() {
-    const opts = { preserveScroll: true, onSuccess: closeForm };
+    const opts = { preserveScroll: true, onSuccess: closeForm, onError: () => focusFirstError() };
+    if (!validate()) return;
     if (editing.value?.id) form.put(route('admin.baggage_types.update', editing.value.id), opts);
     else form.post(route('admin.baggage_types.store'), opts);
 }
@@ -65,7 +74,7 @@ function submit() {
         </div>
 
         <Modal :show="!!editing" max-width="lg" :title="editing?.id ? 'Edit baggage type' : 'New baggage type'" @close="closeForm">
-            <form id="baggage-form" class="grid gap-5" @submit.prevent="submit">
+            <form id="baggage-form" class="grid gap-5" novalidate @submit.prevent="submit">
                 <Input v-model="form.label" label="Label" placeholder="20+10 KG" :error="form.errors.label" required class="[&_input]:uppercase" />
                 <Input v-model="form.description" label="Description" placeholder="20 kg checked + 10 kg hand carry" :error="form.errors.description" />
                 <Toggle v-model="form.is_active" label="Active" />

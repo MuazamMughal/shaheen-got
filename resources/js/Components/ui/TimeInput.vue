@@ -69,7 +69,7 @@ const selectClass = (hasError) => [
             <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-secondary-50 text-secondary"><ClockIcon class="size-5" /></span>
 
             <template v-if="format === '24'">
-                <select :id="id" :class="selectClass(error)" :value="parts.h24 ?? ''" aria-label="Hour (00–23)" @change="set24($event.target.value)">
+                <select :id="id" :class="selectClass(error)" :value="parts.h24 ?? ''" :aria-invalid="!!error" aria-label="Hour (00–23)" @change="set24($event.target.value)">
                     <option value="" disabled>HH</option>
                     <option v-for="h in hours24" :key="h" :value="h">{{ pad(h) }}</option>
                 </select>
@@ -81,7 +81,7 @@ const selectClass = (hasError) => [
             </template>
 
             <template v-else>
-                <select :id="id" :class="selectClass(error)" :value="hour12" aria-label="Hour (1–12)" @change="set12($event.target.value)">
+                <select :id="id" :class="selectClass(error)" :value="hour12" :aria-invalid="!!error" aria-label="Hour (1–12)" @change="set12($event.target.value)">
                     <option value="" disabled>hh</option>
                     <option v-for="h in hours12" :key="h" :value="h">{{ h }}</option>
                 </select>
